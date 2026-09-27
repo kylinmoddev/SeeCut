@@ -30,10 +30,10 @@ demo 里的声音不是 HeyGen 的，是先用豆包 TTS 配好音，再拿这�
 **生成**
 ```bash
 export VOLC_APPID=... VOLC_ACCESS_TOKEN=...          # 别写进任何文件或仓库
-python3 doubao_tts.py --file 文案.txt --out 口播.mp3   # 一行一句，逐句合成后拼接
+python3 doubao_tts.py --file 文案.txt --out 口播.mp3   # 整段一次合成
 ```
-- 默认音色 `zh_male_liufei_uranus_bigtts`（男声），语速 1.1，就是 demo 用的。换音色用 `--voice`，音色 id 在控制台音色列表里查。
-- 逐句合成更稳：一次塞太长的文案容易超字数，连发太快会被瞬时限流（报错就等几秒重跑）。
+- 默认音色 `zh_male_liufei_uranus_bigtts`（男声），语速 1.2，就是 demo 用的。换音色用 `--voice`，音色 id 在控制台音色列表里查。
+- 整段一次合成，语调才连贯；别拆成一句一句合成再拼（每句重新起调，衔接会断）。文案特别长、超出单次上限时才加 `--split`。
 - 合成完建议听一遍，或用 whisper 转写核对有没有漏句。
 
 ## 出片
@@ -54,7 +54,7 @@ python3 heygen_avatar.py av5 --look <LOOK_ID> --audio 口播.mp3 --out a_roll.mp
 ## 我们实际是怎么做的（上面 demo 的那条数字人）
 - **训练片**：自己的口播原片前 45 秒，竖版 1080×1920，单人正对镜头连续说话，手和麦克风不挡嘴（第一版 30 秒训练片手持麦在嘴边，生成的口型穿帮，换掉后正常）。
 - **建分身**：HeyGen 网页 `Clone a Real Person` → 上传训练片 → 摄像头现录 consent → 训练完成后得到竖版 720×1280 的 look。
-- **配音**：没用 HeyGen 内置音色和分身克隆声，另用豆包语音合成（`zh_male_liufei_uranus_bigtts`，语速 1.1）把 110 字文案配成 17.9 秒 mp3：`python3 doubao_tts.py --file 文案.txt --out 口播.mp3`。
+- **配音**：没用 HeyGen 内置音色和分身克隆声，另用豆包语音合成（`zh_male_liufei_uranus_bigtts`，语速 1.2）把 110 字文案整段一次配成 17.9 秒 mp3：`python3 doubao_tts.py --file 文案.txt --out 口播.mp3`。
 - **出片**：`heygen_avatar.py av5 --look <你的 look> --audio 口播.mp3`（引擎 avatar_v）。接口默认出 1280×720 横屏、人像在中间，脚本自动裁回竖屏。
 - **花费**：这一条约 $2（从钱包余额差推算）。
 - 然后把这条竖屏 mp4 当素材交给第 2 步精剪，就是上面的 demo。

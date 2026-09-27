@@ -4,8 +4,8 @@
 需要：环境变量 VOLC_APPID、VOLC_ACCESS_TOKEN（火山引擎控制台 → 豆包语音），ffmpeg/ffprobe。
 
   python3 doubao_tts.py --text "你的口播文案" --out 口播.mp3
-  python3 doubao_tts.py --file 文案.txt --out 口播.mp3 --speed 1.1 --voice zh_male_liufei_uranus_bigtts
-文案按行分句逐句合成，句间留 0.16 秒气口再拼接（长文案一次合成容易超字数、语气也平）。
+  python3 doubao_tts.py --file 文案.txt --out 口播.mp3 --speed 1.2 --voice zh_male_liufei_uranus_bigtts
+默认整段文案一次合成（语调连贯，demo 就是这么做的）。文案太长超过单次上限时，加 --split 按行逐句合成再拼接。
 """
 import argparse, base64, json, os, subprocess, sys, tempfile, uuid
 
@@ -35,9 +35,14 @@ def main():
     g.add_argument('--text'); g.add_argument('--file')
     p.add_argument('--out', required=True)
     p.add_argument('--voice', default='zh_male_liufei_uranus_bigtts', help='音色 id，控制台音色列表里挑')
-    p.add_argument('--speed', type=float, default=1.1)
+    p.add_argument('--speed', type=float, default=1.2)
+    p.add_argument('--split', action='store_true', help='按行逐句合成再拼接（仅用于超长文案，句间语气会断）')
     a = p.parse_args()
     lines = [a.text] if a.text else [l.strip() for l in open(a.file, encoding='utf-8') if l.strip()]
+    if not a.split:
+        lines = [''.join(lines)]
+        if len(lines[0].encode('utf-8')) > 1000:
+            print('⚠ 文案超过约 1000 字节，可能超出单次合成上限；失败的话加 --split')
     tmp = tempfile.mkdtemp()
     gap = os.path.join(tmp, 'gap.mp3')
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'anullsrc=r=24000:cl=mono', '-t', str(GAP), '-q:a', '9', gap], check=True)
