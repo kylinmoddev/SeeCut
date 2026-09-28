@@ -84,6 +84,10 @@ class AuthError(Exception):
     pass
 
 
+class EnvError(Exception):
+    """环境问题（账号地区不支持等），重试没用，直接停下找用户修环境"""
+
+
 class Transient(Exception):
     """接口断连/超时：与内容无关，立即重试（2-4.1 实测：21 次调用 9 次败于 EOF/超时，每次白等 2-9 分钟）"""
 
@@ -107,13 +111,18 @@ def run_agy(mode, workdir, timeout):
         open(os.path.join(RAW_DIR, f'{mode}-{time.strftime("%H%M%S")}-{os.path.basename(workdir)}.raw'), 'w', encoding='utf-8').write(raw)
     try:
         outer = json.loads(p.stdout)
+        if re.search(r'location is not supported|not eligible', raw, re.I):
+            raise EnvError('Google 账号地区不受支持（User location is not supported）：检查账号底层地区与代理，修好再跑')
         if outer.get('status') == 'ERROR':
             raise Transient('agy 接口报错: ' + str(outer.get('error', ''))[:120])
         so = outer.get('structured_output')
         if isinstance(so, dict) and ('checks' in so or 'dimensions' in so):
             return so
         resp = outer.get('response', '')
-    except Transient:
+        # AV5 实测：agy 跑满 print-timeout 被截断时返回 status=SUCCESS + 空 response，以前被当成"内容无效"只试两次就放弃
+        if not str(resp).strip() and re.search(r'print timeout', raw, re.I):
+            raise Transient(f'agy 跑满 {timeout}s 被截断（print timeout）')
+    except (Transient, EnvError):
         raise
     except Exception:
         resp = raw
@@ -122,7 +131,10 @@ def run_agy(mode, workdir, timeout):
             raise AuthError('agy 授权过期/未登录：请人工在终端裸跑一次 agy 重新登录后再试')
         if re.search(r'time(d)? ?out|deadline', raw, re.I):
             raise Transient('agy 自身 print-timeout 超时')
-    return last_json(resp, 'checks' if mode == 'check' else 'dimensions')
+    res = last_json(resp, 'checks' if mode == 'check' else 'dimensions')
+    if res is None and re.search(r'print timeout', raw, re.I):
+        raise Transient(f'agy 跑满 {timeout}s 被截断（print timeout，只返回了半截）')
+    return res
 
 
 def judge_once(mode, files, htmls, timeout, extra=None):
@@ -160,7 +172,11 @@ def judge(mode, files, htmls, timeout, extra=None):
         try:
             r, probs = judge_once(mode, files, htmls, timeout, extra)
         except Transient as e:
-            log(f'第{attempt}次接口失败（{e}），立即重试')
+            if '截断' in str(e) or '未返回' in str(e):
+                timeout = min(int(timeout * 1.5), 900)
+                log(f'第{attempt}次超时（{e}），加长到 {timeout}s 重试')
+            else:
+                log(f'第{attempt}次接口失败（{e}），立即重试')
             probs, r = [str(e)], None
             continue
         if r and not probs:
@@ -203,10 +219,12 @@ def main():
     ap.add_argument('mode', choices=['check', 'pair'])
     ap.add_argument('--video'); ap.add_argument('--html')
     ap.add_argument('--a'); ap.add_argument('--b'); ap.add_argument('--html-a'); ap.add_argument('--html-b')
-    ap.add_argument('--out'); ap.add_argument('--timeout', type=int, default=240)  # 成功调用多在 60-240s；超时即判断连断重试
+    ap.add_argument('--out'); ap.add_argument('--timeout', type=int, default=None)  # 默认 check 300s、pair 540s（看两条视频更久；AV5 实测 240s 时 pair 10 次有 8 次被截断）
     ap.add_argument('--fp-extra', action='append', default=[],
                     help='额外指纹文字清单（证据截图里的字），可多次；html 同目录的 fp-manifest.txt 会自动读')
     a = ap.parse_args()
+    if a.timeout is None:
+        a.timeout = 300 if a.mode == 'check' else 540
     global RAW_DIR
     if a.out:
         RAW_DIR = os.path.splitext(os.path.abspath(a.out))[0] + '_raw'
@@ -235,6 +253,9 @@ def main():
         w1 = ('A' if r1['result']['winner'] == 'X' else 'B') if r1['valid'] else None
         w2 = ('B' if r2['result']['winner'] == 'X' else 'A') if r2['valid'] else None
         consensus = w1 if (w1 and w1 == w2) else ('invalid' if not (w1 and w2) else 'tie')
+        if consensus == 'invalid':
+            log('⚠ 对比没有发生（至少一个顺序无效）：不能当成"新版没赢"，也不能按停机规则交付。'
+                '看 _raw 目录里的原始返回找原因，修好再跑；仍不行就停下报告用户，并在交付报告里写明"对比未发生"。')
         res = {'a': a.a, 'b': a.b, 'order1': r1, 'order2': r2, 'winners': [w1, w2], 'consensus': consensus}
     out = json.dumps(res, ensure_ascii=False, indent=1)
     if a.out:
@@ -244,7 +265,7 @@ def main():
     log('结果:', json.dumps(s, ensure_ascii=False), '→', a.out or '(stdout 未存)')
     if not a.out:
         print(out)
-    # 退出码：0=通过/有共识  1=check 有 FAIL  2=无效（没结果）  3=授权过期
+    # 退出码：0=通过/有共识  1=check 有 FAIL  2=无效（没结果）  3=授权过期或环境不支持（要人来修）
     if a.mode == 'check':
         sys.exit(2 if not res['summary']['valid'] else (0 if res['summary']['gate_pass'] else 1))
     sys.exit(2 if consensus == 'invalid' else 0)
@@ -253,6 +274,6 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except AuthError as e:
+    except (AuthError, EnvError) as e:
         log('⛔', e)
         sys.exit(3)

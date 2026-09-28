@@ -6,6 +6,15 @@ command -v ffmpeg >/dev/null && ok ffmpeg || bad "ffmpeg（brew install ffmpeg�
 if command -v node >/dev/null; then NV=$(node -v | sed 's/v//;s/\..*//'); [ "$NV" -ge 22 ] && ok "node $(node -v)" || bad "node $(node -v) 太旧（HyperFrames 要求 ≥ 22）"; else bad "node（≥ 22）"; fi
 python3 -c "import faster_whisper" 2>/dev/null && ok faster_whisper || bad "faster_whisper（pip install --user faster-whisper）"
 AGY=$(command -v agy || echo ~/.local/bin/agy); [ -x "$AGY" ] && ok "agy $($AGY --version 2>/dev/null | head -1)" || bad "agy（Antigravity CLI，见 README）"
+# 真调一次 agy（约 10-60 秒）：装了不等于能用——账号地区/登录/代理问题要在开工前暴露（AV5 实测：评委跑到一半才报 User location is not supported）
+if [ -x "$AGY" ] && [ -z "$SKIP_AGY_PING" ]; then
+  [ -n "$JIANJI_PROXY" ] && export https_proxy=$JIANJI_PROXY http_proxy=$JIANJI_PROXY HTTPS_PROXY=$JIANJI_PROXY HTTP_PROXY=$JIANJI_PROXY
+  TD=$(mktemp -d); PING=$(cd "$TD" && perl -e 'alarm 150; exec @ARGV' "$AGY" -p "只回复两个字母：OK" --new-project --add-dir . --model gemini-3.8-flash-high --dangerously-skip-permissions --print-timeout 120s 2>&1); rm -rf "$TD"
+  if print -r -- "$PING" | grep -qiE "location is not supported|not eligible"; then bad "agy 能装不能用：Google 账号地区不受支持（改账号底层地区，不是换 IP）"
+  elif print -r -- "$PING" | grep -qiE "Authentication required|not logged in|log ?in"; then bad "agy 未登录：终端裸跑一次 agy 完成登录"
+  elif print -r -- "$PING" | grep -q "OK"; then ok "agy 实调通过（能看视频的眼睛可用）"
+  else bad "agy 实调没有正常返回（查代理/网络）：$(print -r -- "$PING" | tail -1 | cut -c1-120)"; fi
+fi
 [ -n "$https_proxy$JIANJI_PROXY" ] && ok "代理 ${JIANJI_PROXY:-$https_proxy}" || warn "未设代理（agy/海外截图需要：export JIANJI_PROXY=http://127.0.0.1:1087）"
 ls ~/Library/Caches/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell >/dev/null 2>&1 && ok "无头 Chrome（ms-playwright 缓存）" || warn "无 ms-playwright headless shell（设 JIANJI_CHROME 指向现成 Chrome，别新下）"
 [ -n "$JIANJI_PROXY" ] && export HTTPS_PROXY=${HTTPS_PROXY:-$JIANJI_PROXY} HTTP_PROXY=${HTTP_PROXY:-$JIANJI_PROXY}   # hyperframes CLI 只认大写

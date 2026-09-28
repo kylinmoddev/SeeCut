@@ -16,7 +16,7 @@ export function chromium(buildDir){
 }
 export function chromePath(){
   if(process.env.JIANJI_CHROME) return process.env.JIANJI_CHROME;
-  const root=path.join(os.homedir(),'Library/Caches/ms-playwright');
+  for(const root of [path.join(os.homedir(),'Library/Caches/ms-playwright'),path.join(os.homedir(),'.cache/ms-playwright')])  // mac / Linux
   if(fs.existsSync(root)) for(const d of fs.readdirSync(root).filter(x=>x.startsWith('chromium_headless_shell')).sort().reverse()){
     for(const sub of fs.readdirSync(path.join(root,d))){ const p=path.join(root,d,sub,'chrome-headless-shell'); if(fs.existsSync(p)) return p; }
   }
