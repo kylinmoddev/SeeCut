@@ -32,13 +32,13 @@ faster_whisper(small) 词级转写 → `seg_words.json`，转一次就沉淀。�
 
 ## 5 · 构建（HyperFrames HTML/GSAP，守 08 避坑SOP）
 - 人像逐帧 JPG + `<img>` 换 src（禁 video scrub）：**不要手动抽帧**，在 project.json 写 `"source"`，`render.mjs` 会按工程 fps 自动抽并核对帧数（帧数不对直接报错，防口型错位）；GSAP 主时间轴暴露为 `window.__timelines.master`；某刻才出现的元素 CSS `opacity:0` + `.set`/`.to`（禁 `.from`）。
-- 给元素打标 `data-check="box|bg"` / `data-anchor` / `data-word`+`data-t`（几何自检用），**以及 `data-layer`/`data-layer-cat`（剪映分层用，契约见 `10`）**；写 `build/project.json`（契约见 `07` §配置契约）：**必填** `source`（口播源片）、`steady`（各信息拍稳态秒）、`face_rect`（脸在人像外框里的 0-1 位置，抽一帧源片量）——缺了几何检查直接 FAIL。
+- 给元素打标 `data-check="box"`（信息元素）/ `data-check="bg"`（**只给真截图/录屏证据底**，纸底纯色底不打）/ `data-anchor` / `data-word`+`data-t`（几何自检用），**以及 `data-layer`/`data-layer-cat`（剪映分层用，契约见 `10`）**；写 `build/project.json`（契约见 `07` §配置契约）：**必填** `source`（口播源片）、`steady`（各信息拍稳态秒）、`face_rect`（脸在人像外框里的 0-1 位置，抽一帧源片量）——缺了几何检查直接 FAIL。
 - 渲染：`node scripts/render.mjs build probe`（抽帧看）→ `full` → ffmpeg 合成源音轨。**迭代中间版用 `RENDER_SCALE=0.5`**（实测快一倍）；**终版分辨率 = 源片分辨率**：构图按 720 宽写、源片 1080 宽时，在 project.json 写 `"output_scale": 1.5`，终版不设 RENDER_SCALE 就按它出。
 
 ## 6 · 质检闭环（`references/06-质检闭环spec.md`）
 每版 vN：
 1. **硬门 H1**：`node scripts/geom-check.mjs build`（撞位/压人像/**挡脸**/**空拍**/圈锚/无脸/抢拍/弹簧）→ 有 FAIL 先改。
-2. **硬门 H2**：`python3 scripts/agy_judge.py check --video vN.mp4 --html build/master.html --out qc/vN-check.json`（假证据/版面/人像乱跳/读不完/敏感字/空拍）→ 有 FAIL 先改。**agy 报的每条 FAIL 必须打开 `qc/vN-check_failframes/` 里它所标秒数的那一帧再裁定**；判"误报"要在报告里写：条款、agy 标的秒数、你看的帧文件、为什么不成立。**没看它标的那一秒，不许判误报**（AV5 实测：挡脸和红块都因为看了别的时间点被误判成误报，漏到了交付）。
+2. **硬门 H2**：`python3 scripts/agy_judge.py check --video vN.mp4 --html build/master.html --out qc/vN-check.json`（假证据/版面/人像乱跳/读不完/敏感字/空拍）→ 有 FAIL 先改。**agy 报的每条 FAIL 必须打开 `qc/vN-check_failframes/` 里它所标秒数的那一帧再裁定**；判"误报"要在报告里写：条款、agy 标的秒数、你看的帧文件、为什么不成立。**没看它标的那一秒，不许判误报**（AV5 实测：挡脸和红块都因为看了别的时间点被误判成误报，漏到了交付）。**按实质裁定，不抠字眼**：agy 描述的细节不准（比如把"人像缩成小窗"说成"人像退场"），但它指的问题（空、挤、挡）在帧里确实存在，就要认（Muse 2-4.1 实测：12.5s 的空拍因"人像并未退场"被判误报，实际画面大半空纸）。
 3. **采纳判定**：`python3 scripts/agy_judge.py pair --a vN.mp4 --b vN-1.mp4 --html-a ... --out qc/vN-vs-prev.json` → consensus=A 采纳；B 回退；tie 平手；**invalid = 对比没有发生**，不等于"没赢"：看 `_raw` 找原因修好重跑，仍无效就停下报告用户，不许当成已对比去交付。
 4. **找方向**：`pair --a vN.mp4 --b <同类参考片>`，只读各维度差距证据当下一版改动清单。`金锚集/` 里没有参考片时，改为拿 `03` 决策表 + `05` 质量地板逐条对照 vN，列出差距最大的 1-2 处当改动清单。
 5. **停**：硬门全过 且 **最近一次对比有效**（对比不胜上一版 或 到 **v3** 或 只剩肉眼看不出的小修补）→ 进入交付。每一版必须至少改一处第4步找出的大差距，小修补合并进同一版。**不追任何百分比，不自判"够了"，也不无限死磕**；卡住就带证据报告用户。
@@ -46,7 +46,7 @@ faster_whisper(small) 词级转写 → `seg_words.json`，转一次就沉淀。�
 （代理：`export JIANJI_PROXY=http://127.0.0.1:1087` 或按本机 VPN 端口。agy_judge 退出码 2=无结果、3=agy 要重新登录或账号地区不支持→停下找用户。check 默认超时 300s、pair 540s，被截断会自动加长重试。）
 
 ## 7 · 音效（`references/09-音效规范.md`）
-1. 从 `jianying/layers/manifest.json` 的 `events`（先跑第 8 步的 `jianying_layers.mjs`）+ SHOTBOOK 语义挑落点，写 `sfx_choices.json`（开头 0.5 秒内必须有一个 `hook`）。
+1. 从 `jianying/layers/manifest.json` 的 `events`（先跑第 8 步的 `jianying_layers.mjs`）+ SHOTBOOK 语义挑落点，写 `sfx_choices.json`（有音效库时，开头 0.5 秒内必须有一个 `hook`；没有音效库就跳过音效，报告里写明，别合成占位音）。
 2. `python3 scripts/sfx.py plan --choices sfx_choices.json --voice jianying/layers/原声.m4a --words seg_words.json --fps <帧率> --duration <秒> --out sfx_plan.json` → 有 ⚠ 就改 choices 重跑（压字可在 choices 里给该条写 `"gain_db": -3`）。
 3. 有剪映引擎：音效只进剪映草稿（第 8 步 `--sfx`），成片只带原声。**没有剪映引擎：`python3 scripts/sfx.py mix --plan sfx_plan.json --video 成片.mp4 --out 成片_带音效.mp4`**，交带音效的成片。
 - 用户自己的音效库：`python3 scripts/sfx_ledger.py <音效文件夹> --out 台账.json [--listen]` 生成台账，之后 `sfx.py plan` 加 `--ledger 台账.json --sfx-dir <音效文件夹>`。

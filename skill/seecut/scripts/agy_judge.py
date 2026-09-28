@@ -167,10 +167,18 @@ def judge_once(mode, files, htmls, timeout, extra=None):
 
 
 def judge(mode, files, htmls, timeout, extra=None):
-    content_tries, probs, r = 0, [], None
+    content_tries, probs, r, env_retried = 0, [], None, False
     for attempt in range(1, 5):
         try:
             r, probs = judge_once(mode, files, htmls, timeout, extra)
+        except EnvError as e:
+            # Muse 2-4.1 实测：地区报错会抖动，2 分钟后重试即过；只宽限一次，再报就停下找人
+            if env_retried:
+                raise
+            env_retried = True
+            log(f'第{attempt}次报环境问题（{e}），等 60s 重试一次')
+            time.sleep(60)
+            continue
         except Transient as e:
             if '截断' in str(e) or '未返回' in str(e):
                 timeout = min(int(timeout * 1.5), 900)

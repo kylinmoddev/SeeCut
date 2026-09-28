@@ -14,8 +14,8 @@
 
 ### 1. 人像层（A-roll）——★判过一次"卡顿"的坑
 - **不要**在 HTML 里用 `<video>` + 每帧 `currentTime` scrub（无头 Chrome 密集 seek 解码器跟不上 → 人像半数帧冻结 = judder）。
-- ✅ 正确：`ffmpeg -vf fps=30` 把人像**预抽成逐帧 JPG 序列**，HTML 里用 `<img>`，捕获脚本**每帧换 img.src**。0 冻结、还更快。
-- 人像源先规范到 CFR 30fps（`-vf fps=30 -vsync cfr`）。
+- ✅ 正确：人像**预抽成逐帧 JPG 序列**，HTML 里用 `<img>`，捕获脚本**每帧换 img.src**。0 冻结、还更快。
+- **v3.3 起不要手动抽帧**：在 project.json 写 `source`，`render.mjs` 按 project.json 的 fps 自动抽并核对帧数。project.json 的 fps **设成源片 fps**（数字人多为 25fps），不要照搬 30fps（Muse 2-4.1 实测：照本文件旧写法设了 30fps，又手动改回 25）。
 
 ### 2. 设计层蒙皮（参考片质感）
 - 真复制 Vox 卡（student-kit `01-vox-explainer/cards`）+ 覆盖 tokens：**思源黑体 Heavy**(替 Vox 衬线 Fraunces)、砖红/琥珀/青柠色族、点阵纸底。clip-path撕纸/报纸纹/GSAP弹入**原样复用**(守铁律①禁手写神似)。
@@ -34,7 +34,7 @@
 
 ### 5. 合成 + 音轨
 - `ffmpeg -framerate 30 -i frames/f%04d.png -i person_cfr.mp4 -map 0:v -map 1:a -shortest out.mp4`。
-- 试拼走 1080p 快迭代；字幕/BGM/音效**留 作者剪映**(音效我方无法试听音色、剪映有库可听可换)。
+- 试拼走 1080p 快迭代；字幕/BGM **留 作者剪映**。音效按 SKILL 第 7 步和 `09-音效规范`：有剪映引擎进草稿音效轨，没有则混进成片。
 
 ---
 
