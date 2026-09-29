@@ -18,7 +18,7 @@ export function chromePath(){
   if(process.env.JIANJI_CHROME) return process.env.JIANJI_CHROME;
   for(const root of [path.join(os.homedir(),'Library/Caches/ms-playwright'),path.join(os.homedir(),'.cache/ms-playwright')])  // mac / Linux
   if(fs.existsSync(root)) for(const d of fs.readdirSync(root).filter(x=>x.startsWith('chromium_headless_shell')).sort().reverse()){
-    for(const sub of fs.readdirSync(path.join(root,d))){ const p=path.join(root,d,sub,'chrome-headless-shell'); if(fs.existsSync(p)) return p; }
+    for(const sub of fs.readdirSync(path.join(root,d))) for(const exe of ['chrome-headless-shell','headless_shell']){ const p=path.join(root,d,sub,exe); if(fs.existsSync(p)) return p; }  // mac 叫 chrome-headless-shell，Linux 是 chrome-linux/headless_shell
   }
   return undefined; // 交给 playwright 默认
 }

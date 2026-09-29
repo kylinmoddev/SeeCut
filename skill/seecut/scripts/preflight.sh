@@ -16,7 +16,7 @@ if [ -x "$AGY" ] && [ -z "$SKIP_AGY_PING" ]; then
   else bad "agy 实调没有正常返回（查代理/网络）：$(print -r -- "$PING" | tail -1 | cut -c1-120)"; fi
 fi
 [ -n "$https_proxy$JIANJI_PROXY" ] && ok "已设代理（地址不打印，防泄露账号密码）" || warn "未设代理（agy/海外截图需要：export JIANJI_PROXY=http://127.0.0.1:1087）"
-HS=( ~/Library/Caches/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell(N) ~/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell(N) ); [ -n "$JIANJI_CHROME$HS" ] && ok "无头 Chrome（${JIANJI_CHROME:-ms-playwright 缓存}）" || warn "无 ms-playwright headless shell（设 JIANJI_CHROME 指向现成 Chrome，别新下）"
+HS=( ~/Library/Caches/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell(N) ~/.cache/ms-playwright/chromium_headless_shell-*/*/{chrome-headless-shell,headless_shell}(N) ); [ -n "$JIANJI_CHROME$HS" ] && ok "无头 Chrome（${JIANJI_CHROME:-ms-playwright 缓存}）" || warn "无 ms-playwright headless shell（设 JIANJI_CHROME 指向现成 Chrome，别新下）"
 [ -n "$JIANJI_PROXY" ] && export HTTPS_PROXY=${HTTPS_PROXY:-$JIANJI_PROXY} HTTP_PROXY=${HTTP_PROXY:-$JIANJI_PROXY}   # hyperframes CLI 只认大写
 if command -v hyperframes >/dev/null; then ok "hyperframes CLI（全局）"
 elif HV=$(perl -e 'alarm 60; exec @ARGV' npx -y hyperframes@latest --version 2>/dev/null); then ok "hyperframes CLI（npx，$HV）→ 用 npx -y hyperframes@latest catalog/add"

@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v3.3.2-beta（2026-09-29）· Muse 第三轮小修
+- chromePath / preflight 认 Linux 的无头浏览器文件名 `chrome-linux/headless_shell`（v3.3.1 只补了目录，Muse 仍需手动设 JIANJI_CHROME）。
+- 第三轮结论：几何检查本地复核真全绿（bg 只打在真证据图上），两两对比两次均有效，硬伤为零；空纸问题基本消失。
+
 ## v3.3.1-beta（2026-09-29）· Muse 第二轮（2-4.1 素材）审计回灌（维护者）
 依据：Muse 拉 muse-test 分支跑 2-4.1 数字人原片，交 v1-v3 + REPORT + qc 全量；维护者本地重跑几何检查、逐条核误报、逐条核它列的 11 条仓库问题（9 条属实）。
 - **geom-check 漏洞**：空拍把 `data-check="bg"` 算覆盖，Muse 把整张纸底标成 bg → 覆盖率 100%、空拍永不判（v3 实际 3.6-8.2s 空了 4.6 秒）。改：bg 只认里面有 img/video/canvas 的真证据底；规格写明 bg 定义。
