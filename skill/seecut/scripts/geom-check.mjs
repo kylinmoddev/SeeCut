@@ -2,13 +2,15 @@
 // 用法: node geom-check.mjs <build目录>     退出码 0=全绿 1=有FAIL 2/3=环境错误/超时
 // 打标契约(见 references/07): data-check="box"|"bg" · data-anchor=目标id · data-word=关键词 + data-t=该词起始秒
 //                         人像外框 #<person_wrap_id>；project.json 里 steady=各信息拍稳态秒, spring=[[选择器,入场秒],...]
+//                         face_rect=[x0,y0,x1,y1]：脸在人像外框里的位置（0-1 比例，抽源片帧量一次），有人像时必填（挡脸检查用）
 import path from 'path';
 import { loadProject, chromium, chromePath, watchdog } from './_common.mjs';
 const buildDir=process.argv[2]; if(!buildDir){console.error('用法: node geom-check.mjs <build目录>');process.exit(2);}
 const P=loadProject(buildDir);
 const WD=watchdog(120000,'geom-check');
 const C={N:P.N,FPS:P.fps,W:P.width,H:P.height,STEP:2,STEADY:P.steady,TL:P.timeline,PW:P.person_wrap_id,
-  OVERLAP_MAX:P.overlap_max??0.15,ANCHOR_DIST:0.40,ANCHOR_COVER:0.60,NOFACE_MAX:P.noface_max??5.0,FULLFRAME:0.45};
+  OVERLAP_MAX:P.overlap_max??0.15,ANCHOR_DIST:0.40,ANCHOR_COVER:0.60,NOFACE_MAX:P.noface_max??5.0,FULLFRAME:0.45,
+  FACE:P.face_rect||null,FACE_MAX:P.face_max??0.08,MIN_COVER:P.min_cover??0.18,EMPTY_MAX:P.empty_max??1.5};
 const b=await chromium(P.B).launch({headless:true,executablePath:chromePath()});
 const pg=await (await b.newContext({viewport:{width:P.width,height:P.height},deviceScaleFactor:1})).newPage();
 await pg.goto('file://'+path.join(P.B,P.html),{waitUntil:'load',timeout:30000});
@@ -16,20 +18,40 @@ await pg.evaluate(()=>document.fonts&&document.fonts.ready).catch(()=>{});
 await new Promise(r=>setTimeout(r,400));
 const R=await pg.evaluate((C)=>{
   const tl=(window.__timelines||{})[C.TL]; if(!tl) return {err:'找不到 window.__timelines.'+C.TL};
-  const {N,FPS,W,H,STEP,STEADY,OVERLAP_MAX,ANCHOR_DIST,ANCHOR_COVER,NOFACE_MAX,FULLFRAME}=C;
+  const {N,FPS,W,H,STEP,STEADY,OVERLAP_MAX,ANCHOR_DIST,ANCHOR_COVER,NOFACE_MAX,FULLFRAME,FACE,FACE_MAX,MIN_COVER}=C;
   const eff=el=>{let o=1,n=el;while(n&&n!==document.body){const cs=getComputedStyle(n);
     if(cs.display==='none'||cs.visibility==='hidden')return{vis:false};o*=parseFloat(cs.opacity)||0;n=n.parentElement;}
     const r=el.getBoundingClientRect();
     return{vis:o>0.1&&r.width>2&&r.height>2&&r.bottom>0&&r.top<H&&r.right>0&&r.left<W,x:r.left,y:r.top,w:r.width,h:r.height,cx:r.left+r.width/2,cy:r.top+r.height/2};};
   const inter=(a,c)=>Math.max(0,Math.min(a.x+a.w,c.x+c.w)-Math.max(a.x,c.x))*Math.max(0,Math.min(a.y+a.h,c.y+c.h)-Math.max(a.y,c.y));
   const FAILS=[],WARN=[];
-  if(!STEADY.length) WARN.push('[配置] project.json 未给 steady(信息拍稳态秒)，撞位/圈锚/密度未检');
+  // 没配 steady = 撞位/圈锚/空拍整段没检，必须 FAIL（AV5 实测：只报 WARN 时执行窗会直接跳过）
+  if(!STEADY.length) FAILS.push('[配置] project.json 未给 steady(各信息拍稳态秒)，撞位/圈锚/空拍无法检查');
+  const pwEl0=document.getElementById(C.PW);
+  if(pwEl0&&!FACE) FAILS.push('[配置] project.json 未给 face_rect(脸在人像外框里的 0-1 位置)，挡脸无法检查');
+  // 挡脸：任何文字/卡片压到脸上都 FAIL，不管人像多大（AV5 实测：人像全屏时字卡压额头、压嘴，旧版只查小窗）
+  const faceBox=()=>{const pw=document.getElementById(C.PW); if(!pw||!FACE)return null; const P0=eff(pw); if(!P0.vis)return null;
+    return{x:P0.x+P0.w*FACE[0],y:P0.y+P0.h*FACE[1],w:P0.w*(FACE[2]-FACE[0]),h:P0.h*(FACE[3]-FACE[1])};};
+  const faceHits=(t,seen)=>{const F=faceBox(); if(!F)return; const pw=document.getElementById(C.PW);
+    for(const el of document.querySelectorAll('[data-check="box"]')){ if(pw.contains(el))continue; const E=eff(el); if(!E.vis)continue;
+      const a=inter(E,F); if(a/(F.w*F.h)<=FACE_MAX)continue;
+      const x0=Math.max(E.x,F.x),y0=Math.max(E.y,F.y),x1=Math.min(E.x+E.w,F.x+F.w),y1=Math.min(E.y+E.h,F.y+F.h);
+      const pts=[[.5,.5],[.25,.25],[.75,.25],[.25,.75],[.75,.75]].map(([u,v])=>[x0+(x1-x0)*u,y0+(y1-y0)*v]);
+      const on=pts.filter(([x,y])=>{const top=document.elementFromPoint(x,y);return top&&el.contains(top);}).length;
+      const id=el.id||el.className; if(on>=2&&!seen.has(id)){seen.add(id);FAILS.push(`[挡脸] t=${t.toFixed(2)}s "${id}" 盖住脸 ${(a/(F.w*F.h)*100)|0}%`);}}};
   for(const t of STEADY){tl.time(t);
     const boxes=[...document.querySelectorAll('[data-check="box"]')].map(el=>({id:el.id||el.className,...eff(el)})).filter(e=>e.vis);
     for(let i=0;i<boxes.length;i++)for(let j=i+1;j<boxes.length;j++){const a=boxes[i],c=boxes[j];
       const r=inter(a,c)/Math.min(a.w*a.h,c.w*c.h); if(r>OVERLAP_MAX)FAILS.push(`[撞位] t=${t}s "${a.id}"✕"${c.id}" ${(r*100)|0}%`);}
-    if(boxes.length<2)WARN.push(`[空拍?] t=${t}s 可见 box 仅 ${boxes.length} 个`);
     const pw=document.getElementById(C.PW);const Pp=pw?eff(pw):{vis:false};
+    // 空拍：人像没占满画面时，信息层(box+证据底bg)必须撑住——少于 2 个元素或总面积 < MIN_COVER 即 FAIL（AV5 实测：小窗人像+空纸 10 秒）
+    // bg 只认真证据底（里面有截图/录屏 img/video/canvas）；纯色、纸纹底不算信息（Muse 2-4.1 实测：把整张纸底标成 bg，覆盖率被算成 100%，空拍永远不判）
+    const bgs=[...document.querySelectorAll('[data-check="bg"]')].filter(el=>el.matches('img,video,canvas')||el.querySelector('img,video,canvas')).map(el=>eff(el)).filter(e=>e.vis);
+    const clip=e=>Math.max(0,Math.min(e.x+e.w,W)-Math.max(e.x,0))*Math.max(0,Math.min(e.y+e.h,H)-Math.max(e.y,0));
+    const cover=Math.min(1,[...boxes,...bgs].reduce((s,e)=>s+clip(e),0)/(W*H));
+    const big=Pp.vis&&(Pp.w*Pp.h)/(W*H)>=FULLFRAME;
+    if(!big&&(boxes.length+bgs.length<2||cover<MIN_COVER))FAILS.push(`[空拍] t=${t}s 人像${Pp.vis?'小窗':'隐藏'}，信息层 ${boxes.length+bgs.length} 个元素、覆盖 ${(cover*100)|0}%（要求 ≥2 个且 ≥${MIN_COVER*100}%）`);
+    else if(big&&boxes.length<1)WARN.push(`[纯露人] t=${t}s 人像全屏、无信息元素（纯观点段可以，确认是有意的）`);
     if(Pp.vis&&(Pp.w*Pp.h)/(W*H)<FULLFRAME)for(const bx of boxes){const r=inter(bx,Pp)/Math.min(bx.w*bx.h,Pp.w*Pp.h);
       if(r>0.12)FAILS.push(`[压人像] t=${t}s "${bx.id}" ${(r*100)|0}%`);}
     // 被人像盖住（z 序遮挡）：不管人像多大都查——Round2-4.2 实测字卡被人像盖 1.5s，bbox 撞位和 agy 都没抓到
@@ -44,11 +66,21 @@ const R=await pg.evaluate((C)=>{
       if(dist>T.h*ANCHOR_DIST)FAILS.push(`[圈歪] t=${t}s "${te.id}" 偏 ${dist|0}px`);
       if(cov<ANCHOR_COVER)FAILS.push(`[圈偏] t=${t}s "${te.id}" 覆盖 ${(cov*100)|0}%`);}}
   const words=[...document.querySelectorAll('[data-word]')].map(el=>({l:el.getAttribute('data-word'),t:parseFloat(el.getAttribute('data-t')),el}));
-  const first={};let nf=0,nfMax=0;
-  for(let i=0;i<N;i+=STEP){tl.time(i/FPS);const pw=document.getElementById(C.PW);const pv=pw?eff(pw).vis:true;
+  // 全片连续空拍：不依赖执行窗挑的 steady 时刻（Muse 2-4.1 实测：3-9s 空了 6 秒，steady 只抽到 4.8s 一次）
+  const emptyAt=()=>{const pw=document.getElementById(C.PW);const Pp=pw?eff(pw):{vis:false};
+    if(Pp.vis&&(Pp.w*Pp.h)/(W*H)>=FULLFRAME)return false;
+    const els=[...document.querySelectorAll('[data-check="box"]')].map(eff).filter(e=>e.vis)
+      .concat([...document.querySelectorAll('[data-check="bg"]')].filter(el=>el.matches('img,video,canvas')||el.querySelector('img,video,canvas')).map(eff).filter(e=>e.vis));
+    const clip=e=>Math.max(0,Math.min(e.x+e.w,W)-Math.max(e.x,0))*Math.max(0,Math.min(e.y+e.h,H)-Math.max(e.y,0));
+    return els.length<2||els.reduce((s,e)=>s+clip(e),0)/(W*H)<MIN_COVER;};
+  let er=0,erMax=0,erEnd=0;
+  const first={};let nf=0,nfMax=0;const faceSeen=new Set();
+  for(let i=0;i<N;i+=STEP){tl.time(i/FPS);faceHits(i/FPS,faceSeen);
+    if(emptyAt()){er+=STEP;if(er>erMax){erMax=er;erEnd=i/FPS;}}else er=0;const pw=document.getElementById(C.PW);const pv=pw?eff(pw).vis:true;
     if(!pv){nf+=STEP;nfMax=Math.max(nfMax,nf);}else nf=0;
     for(const w of words)if(first[w.l]===undefined&&eff(w.el).vis)first[w.l]=i/FPS;}
   const nfs=nfMax/FPS; if(nfs>NOFACE_MAX)FAILS.push(`[无脸] 最长 ${nfs.toFixed(1)}s > ${NOFACE_MAX}s`);
+  const ers=erMax/FPS; if(ers>C.EMPTY_MAX)FAILS.push(`[连续空拍] ${(erEnd-ers).toFixed(1)}-${erEnd.toFixed(1)}s 共 ${ers.toFixed(1)}s 人像不大且信息层撑不住画面（>${C.EMPTY_MAX}s）`);
   for(const w of words){const f=first[w.l]; if(isNaN(w.t)){WARN.push(`[timing] "${w.l}" 缺 data-t`);continue;}
     if(f===undefined)WARN.push(`[timing] "${w.l}" 全程未见`); else if(f<w.t-0.05)FAILS.push(`[抢拍] "${w.l}" @${f.toFixed(2)}s 早于词 @${w.t}s`);}
   return{FAILS,WARN,nfs,words:words.map(w=>({l:w.l,t:w.t,f:first[w.l]}))};
