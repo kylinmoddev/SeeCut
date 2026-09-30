@@ -90,6 +90,7 @@
 - [HyperFrames](https://github.com/heygen-com/hyperframes)：渲染引擎和官方组件库，画面里的大量动效靠它撑起来。
 - [video-talkcraft](https://github.com/Vincentwei1021/video-talkcraft)：剪辑管线的整体编排思路（Design Reference → 组件库 → SHOTBOOK）。
 - [hypit](https://github.com/hypit-ai/hypit)：爆款拆解的思路，帮助我们理解网感和素材。
+- [awesome-opus5-5-videos](https://github.com/yihui-dev/awesome-opus5-5-videos)：纯观点段落"没素材可截时怎么画"的画法参考，从它收集的提示词里提炼。
 - [hyperframes-student-kit](https://github.com/nateherkai/hyperframes-student-kit)：Vox Explainer 风格的设计令牌和卡片样式。
 - [jianying-headless](https://github.com/mcncarl/jianying-headless)：剪映草稿引擎。
 - [rachel-digital-human-production](https://github.com/Jingyi-Wu-Richael/rachel-digital-human-production)：数字人流程的起点；在它的基础上，我们又实测改进了 AV5 数字分身、豆包配音和竖屏裁切。

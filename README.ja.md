@@ -91,6 +91,7 @@ SeeCut は Claude Code などのコーディングエージェント向けのス
 - [HyperFrames](https://github.com/heygen-com/hyperframes)：レンダリングエンジンと公式コンポーネントライブラリ。画面の動きの多くを支えています。
 - [video-talkcraft](https://github.com/Vincentwei1021/video-talkcraft)：編集パイプライン全体の組み立て方（Design Reference → コンポーネントライブラリ → SHOTBOOK）。
 - [hypit](https://github.com/hypit-ai/hypit)：ヒット動画を分解する考え方が、「ネットらしさ」と素材を理解する助けになりました。
+- [awesome-opus5-5-videos](https://github.com/yihui-dev/awesome-opus5-5-videos)：キャプチャできる素材がない意見パートの描き方の参考（収録プロンプトから抽出）。
 - [hyperframes-student-kit](https://github.com/nateherkai/hyperframes-student-kit)：Vox Explainer スタイルのデザイントークンとカードのスタイル。
 - [jianying-headless](https://github.com/mcncarl/jianying-headless)：剪映ドラフトエンジン。
 - [rachel-digital-human-production](https://github.com/Jingyi-Wu-Richael/rachel-digital-human-production)：AI アバター手順の出発点。その上で AV5 デジタルツイン、Doubao 音声、縦長クロップを検証・改良しました。

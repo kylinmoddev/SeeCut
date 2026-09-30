@@ -91,6 +91,7 @@ This pipeline stands on the shoulders of:
 - [HyperFrames](https://github.com/heygen-com/hyperframes): the rendering engine and official component library behind much of the motion on screen.
 - [video-talkcraft](https://github.com/Vincentwei1021/video-talkcraft): the overall editing-pipeline structure (Design Reference → component library → SHOTBOOK).
 - [hypit](https://github.com/hypit-ai/hypit): its approach to breaking down viral videos helped us understand what makes footage feel native to the feed.
+- [awesome-opus5-5-videos](https://github.com/yihui-dev/awesome-opus5-5-videos): ideas for drawing opinion-only segments with no footage to capture, distilled from its prompt collection.
 - [hyperframes-student-kit](https://github.com/nateherkai/hyperframes-student-kit): the Vox Explainer-style design tokens and card styling.
 - [jianying-headless](https://github.com/mcncarl/jianying-headless): the JianYing draft engine.
 - [rachel-digital-human-production](https://github.com/Jingyi-Wu-Richael/rachel-digital-human-production): the starting point of our AI-avatar workflow; on top of it we tested and improved the AV5 digital twin, the Doubao voice and vertical cropping.
